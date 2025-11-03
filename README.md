@@ -12,16 +12,16 @@
 
 ## 环境要求
 
-- Python 3.8+
-- PostgreSQL 数据库
+- Python 3.10+
+- PostgreSQL 数据库和内置sqlite数据库
 - 其他依赖包（见 requirements.txt）
 
 ## 安装步骤
 
 1. 克隆项目到本地：
 ```bash
-git clone https://github.com/botasky11/text_to_sql_agent.git
-cd text_to_sql_agent
+git clone https://github.com/botasky11/text_to_sql_agent_6000R.git
+cd text_to_sql_agent_6000R
 ```
 
 2. 创建并激活虚拟环境（推荐）：
@@ -51,7 +51,7 @@ pip install -r requirements.txt
    a. 创建 `config.yaml` 文件并配置数据库连接信息：
    ```yaml
    db_url: "postgresql+psycopg2://username:password@localhost:5432/database_name"
-   max_tokens: 2000
+   max_tokens: 20000
    temperature: 0.2
    model_path: "defog/sqlcoder-7b-2"
    ```
@@ -99,7 +99,7 @@ streamlit run app.py
 ## 项目结构
 
 ```
-text_to_sql_agent/
+text_to_sql_agent_6000R/
 ├── app.py              # 主应用文件
 ├── app_chains.py       # 基于 LangChain 的应用实现
 ├── agent/             # Agent 相关代码
@@ -113,10 +113,81 @@ text_to_sql_agent/
 └── requirements.txt    # 项目依赖
 ```
 
+## 测试数据库（test_database）
+
+项目内置 `test_database` 目录，包含多套示例数据库（每个子目录是一套独立的 SQLite 数据库），便于本地体验与评测：
+
+- 每个子目录通常包含：
+  - `.sqlite`：SQLite 数据文件
+  - `schema.sql`：该数据库的建表与 schema 定义
+- 示例：`test_database/concert_singer/concert_singer.sqlite`
+
+使用方式（将应用连接到某个测试数据库）：
+
+1. 在 `config.yaml` 里设置 `db_url` 指向目标 SQLite 文件。例如：
+   ```yaml
+   db_url: "sqlite:///test_database/customers_and_orders/customers_and_orders.sqlite"
+   # 或使用绝对路径（推荐）
+   # db_url: "sqlite:////Users/yourname/path/text_to_sql_agent_6000R/test_database/concert_singer/concert_singer.sqlite"
+   ```
+2. 启动应用或运行离线脚本时，将使用该数据库进行 schema 解析与 SQL 执行。
+
+小贴士：`db_url` 可替换为任意 sqlalchemy 支持的数据库连接串（如 PostgreSQL/MySQL 等）。
+
+## 批量生成 SQL 与评测（generate_sql.py）
+
+`generate_sql.py` 用于离线批量生成 SQL，并与标准答案进行对照输出，便于快速评测模型表现：
+
+- 输入：`test/dev.sql` 中的问答对，格式为成对出现的行：
+  - `Question ... ||| <db_name>`
+  - `SQL: <gold_sql>`（黄金标准）
+- 目标库选择：脚本内的 `db_name` 参数（默认 `flight_2`）决定本次评测使用的数据库名称，应与 `test_database/<db_name>` 对应，并确保 `config.yaml` 的 `db_url` 指向该库的 `.sqlite` 文件。
+- 输出：
+  - `test/gold_example_<db_name>.txt`：黄金标准 SQL 列表
+  - `test/pred_example_<db_name>.txt`：模型生成的 SQL 列表
+  - `test/errors.log`：可选，运行过程中产生的错误摘要
+  - `logs/text_to_sql_generate_sql_YYYYMMDD.log`：详细运行日志
+
+使用步骤：
+
+1. 配置 LLM 接入：在 `.env` 中填写 `model`、`api_key`、`base_url`（如需）。
+2. 在 `config.yaml` 中设置 `db_url` 指向要评测的 SQLite 数据库（见上文）。
+3. 打开 `generate_sql.py`，根据需要设置：
+   - `db_name`：与 `test_database` 中的数据库目录同名，例如 `concert_singer`、`flight_2` 等。
+   - 可选：请求参数 `top_k`（默认 5）、`dialect`（默认 `SQLite`）在代码的 `QueryRequest` 中定义，可按需调整。
+4. 运行：
+   ```bash
+   python generate_sql.py
+   ```
+5. 查看输出文件位于 `test/` 目录下，以及日志位于 `logs/` 目录。
+
+注意：脚本会确保生成 SQL 末尾不包含分号，以便后续对齐评测。
+
 ## 开发说明
 
 - `app.py`: 使用基础的 LangChain，Streamlit 实现
 - `app_chains.py`: 使用 LangGraph 有状态实现，提供human-in-loop 更强大的交互功能
+
+### Few-shot 示例（agent/agent.py）
+
+在 `agent/agent.py` 中预置了若干条 few-shot 示例（“自然语言输入 → SQL” 对）。这些示例通过语义相似度动态检索的方式被拼接进系统提示，帮助模型学习期望的 SQL 书写风格与结构，从而提升生成的稳定性与准确性。
+
+- 机制：
+  - 使用 `OpenAIEmbeddings`（`text-embedding-3-large`）对用户输入与示例进行向量化。
+  - 借助 `FAISS` 与 `SemanticSimilarityExampleSelector`，从示例集中按语义相似度选取最多 `k=5` 条最相关示例。
+  - 选出的示例与系统前缀 `SYSTEM_PREFIX` 一起组成 `FewShotPromptTemplate`，作为 Agent 的系统提示输入模型。
+
+- 作用：
+  - 提升 SQL 生成的一致性，减少聚合、连接、排序等常见模式的逻辑错误。
+  - 对齐输出风格（如 `ORDER BY ... NULLS LAST`、`LIMIT` 用法等），更贴近期望的查询模板。
+
+- 自定义与调整：
+  - 在 `agent/agent.py` 的 `examples` 列表中添加/修改你领域内的高质量示例即可定制行为。
+  - 通过 `k` 参数控制每次纳入提示的示例条数（当前为 `k=5`）。
+  - 如需临时关闭 few-shot，可将系统提示改为仅使用 `SYSTEM_PREFIX`（不拼接示例），或将示例列表清空。
+
+- 依赖与配置：
+  - 需要在 `.env` 中配置 `api_key` 以使用嵌入模型；`model`/`base_url` 按你的 LLM 服务配置。
 
 ## 注意事项
 
