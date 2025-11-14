@@ -23,6 +23,8 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
 )
 from agent.state import AgentState
+from typing import Dict, Any
+from langchain_core.runnables import Runnable
 # react agent配置
 class reactAgentConfig(BaseModel):
     username: str
@@ -53,10 +55,10 @@ llm = init_chat_model(model=os.getenv("model"),
                       api_key=os.getenv("api_key"), 
                       base_url=os.getenv("base_url"), 
                       max_tokens=config["max_tokens"])
-# 初始化数据库
-db = SQLDatabase(engine)
-# 初始化工具
-toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+# # 初始化数据库
+# db = SQLDatabase(engine)
+# # 初始化工具
+# toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 # 初始化系统提示
 # prompt_template = hub.pull("langchain-ai/sql-agent-system-prompt")
 # assert len(prompt_template.messages) == 1
@@ -85,17 +87,24 @@ embeddings = OpenAIEmbeddings(model="text-embedding-3-large",
 # )
 
 # few shot examples
-examples = [{"input": "What is the average number of citations received by publications in each year?", "query": "SELECT publication.year, AVG(publication.citation_num) AS average_citations FROM publication GROUP BY publication.year ORDER BY publication.year NULLS LAST;"},
-           {"input": "What are the titles of all publications ordered alphabetically?", "query": "SELECT DISTINCT publication.title FROM publication ORDER BY publication.title ASC NULLS LAST;"},
-           {"input": "What is the total number of citations received by publications in 2020?", "query": "SELECT SUM(publication.citation_num) AS total_citations FROM publication WHERE publication.year = 2020;"},
-           {"input": "What is the ratio of publications to authors in the database?", "query": "SELECT CAST(COUNT(DISTINCT publication.pid) AS FLOAT) / NULLIF(COUNT(DISTINCT author.aid), 0) AS publication_to_author_ratio FROM publication, author;"},
-           {"input": "Which author had the most publications in the year 2021 and how many publications did he/she have that year?", "query": "SELECT author.name, author.aid, COUNT(publication.pid) AS publication_count FROM writes JOIN author ON writes.aid = author.aid JOIN publication ON writes.pid = publication.pid WHERE publication.year = 2021 GROUP BY author.name, author.aid ORDER BY publication_count DESC NULLS LAST LIMIT 1;"},
+# examples = [{"input": "List the first name of all the professionals along with the description of the treatment they have done .", "query": "select distinct t1.first_name ,  t3.treatment_type_description from professionals as t1 join treatments as t2 on t1.professional_id  =  t2.professional_id join treatment_types as t3 on t2.treatment_type_code  =  t3.treatment_type_code"},
+#            {"input": "Find the number of professionals who have not treated any dogs . ", "query": "select count(*) from professionals where professional_id not in ( select professional_id from treatments )"},
+#            {"input": "Which owners live in the state whose name contains the substring 'North ' ? List his first name , last name and email address. ", "query": "select first_name ,  last_name ,  email_address from owners where state like '%north%'"},
+#            {"input": "What are the emails of the professionals living in either the state of Hawaii or the state of Wisconsin ?", "query": "select email_address from professionals where state  =  'hawaii' or state  =  'wisconsin'"},
+#            {"input": "List the cost of each treatment and the corresponding treatment type description .", "query": "select t1.cost_of_treatment ,  t2.treatment_type_description from treatments as t1 join treatment_types as t2 on t1.treatment_type_code  =  t2.treatment_type_code"},
+#            ]
+
+examples = [{"input":"Database schema: breeds,charges,sizes,treatment_types,owners,dogs,professionals,treatments\n\nUser question: List the first name of all the professionals along with the description of the treatment they have done .", "query": "select distinct t1.first_name ,  t3.treatment_type_description from professionals as t1 join treatments as t2 on t1.professional_id  =  t2.professional_id join treatment_types as t3 on t2.treatment_type_code  =  t3.treatment_type_code"},
+            {"input":"Database schema: breeds,charges,sizes,treatment_types,owners,dogs,professionals,treatments\n\nUser question: Find the number of professionals who have not treated any dogs . ", "query": "select count(*) from professionals where professional_id not in ( select professional_id from treatments )"},
+            {"input":"Database schema: breeds,charges,sizes,treatment_types,owners,dogs,professionals,treatments\n\nUser question: Which owners live in the state whose name contains the substring 'North ' ? List his first name , last name and email address. ", "query": "select first_name ,  last_name ,  email_address from owners where state like '%north%'"},
+            {"input":"Database schema: breeds,charges,sizes,treatment_types,owners,dogs,professionals,treatments\n\nUser question: What are the emails of the professionals living in either the state of Hawaii or the state of Wisconsin ?", "query": "select email_address from professionals where state  =  'hawaii' or state  =  'wisconsin'"},
+            {"input":"Database schema: breeds,charges,sizes,treatment_types,owners,dogs,professionals,treatments\n\nUser question: List the cost of each treatment and the corresponding treatment type description .", "query": "select t1.cost_of_treatment ,  t2.treatment_type_description from treatments as t1 join treatment_types as t2 on t1.treatment_type_code  =  t2.treatment_type_code"},
            ]
 example_selector = SemanticSimilarityExampleSelector.from_examples(
     examples,
     embeddings,
     FAISS,
-    k=5,
+    k=1,
     input_keys=["input"],
 )
 
@@ -109,6 +118,16 @@ few_shot_prompt = FewShotPromptTemplate(
     prefix=SYSTEM_PREFIX,
     suffix="User input: {input}\nSQL query: ",
 )
+
+# few_shot_prompt = FewShotPromptTemplate(
+#     examples=examples,
+#     example_prompt=PromptTemplate.from_template(
+#         "User input: {input}\nSQL query: {query}"
+#     ),
+#     input_variables=["input", "dialect", "top_k"],
+#     prefix=SYSTEM_PREFIX,
+#     suffix="User input: {input}\nSQL query: ",
+# )
 
 full_prompt = ChatPromptTemplate.from_messages(
     [
@@ -127,10 +146,24 @@ full_prompt = ChatPromptTemplate.from_messages(
 #     }   
 # )
 
-react_agent_graph = create_react_agent(
-    model=llm,
-    tools=toolkit.get_tools(),
-    prompt=full_prompt,
-    state_schema=AgentState,
-    config_schema=reactAgentConfig
-)
+# react_agent_graph = create_react_agent(
+#     model=llm,
+#     tools=toolkit.get_tools(),
+#     prompt=full_prompt,
+#     state_schema=AgentState,
+#     config_schema=reactAgentConfig
+# )
+
+def create_react_agent_graph(db_name: str) -> Runnable:
+    # 根据db_name获取数据库
+    db = SQLDatabase.from_uri(f"sqlite:///test_database/{db_name}/{db_name}.sqlite")
+    # 初始化工具
+    toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+    # 初始化agent
+    return create_react_agent(
+        model=llm,
+        tools=toolkit.get_tools(),
+        prompt=full_prompt,
+        state_schema=AgentState,
+        config_schema=reactAgentConfig
+    )

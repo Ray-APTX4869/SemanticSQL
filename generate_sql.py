@@ -1,12 +1,15 @@
 from pydantic import BaseModel
-from typing import List, Optional
-from agent.agent import react_agent_graph
+from typing import List, Optional, Dict
+from agent.agent import create_react_agent_graph
 from langchain_core.messages import AIMessage, ToolMessage
 import logging
 import json
 from datetime import datetime
 import os
 import asyncio
+from utils.schema_utils import get_schemas_from_json, Schema
+from langchain_core.runnables import Runnable
+from tools.sql_tool import sql_format
 
 # 创建logs目录（如果不存在）
 os.makedirs('logs', exist_ok=True)
@@ -35,14 +38,34 @@ class QueryResponse(BaseModel):
     result: Optional[str] = None
     error: Optional[str] = None
     steps: List[dict] = []
+    def get_format_sql_query(self):
+        if self.sql_query:
+            if self.sql_query.startswith('```sql') and self.sql_query.endswith('```'):
+                self.sql_query = self.sql_query[7:-3].strip()
+            elif self.sql_query.startswith('```') and self.sql_query.endswith('```'):
+                self.sql_query = self.sql_query[3:-3].strip()
+            # 去掉 sql_query 中的换行符
+            if self.sql_query:
+                self.sql_query = self.sql_query.replace('\n', ' ')
+            return self.sql_query.strip()
+        return self.sql_query
 
-async def process_query(request: QueryRequest):
+async def process_query(request: QueryRequest, schema: Schema, react_agent_graph: Runnable):
     try:
         # 记录请求
         logger.info(f"Received query request: {json.dumps(request.model_dump(), ensure_ascii=False)}")
         
+        # 将 schema 字典格式化为可读文本，传递给 LLM
+        schema_info_text = schema.to_text()
+
+        # 将 schema 信息加入到输入中，确保模型在生成 SQL 时可见表结构
+        if schema_info_text:
+            enhanced_input = f"Database schema:\n{schema_info_text}\n\nUser question:\n{request.question}"
+        else:
+            enhanced_input = request.question
+
         initial_state = {
-            "input": request.question,
+            "input": enhanced_input,
             "top_k": request.top_k,
             "dialect": request.dialect,
             "messages": []
@@ -137,72 +160,78 @@ def generate_query():
 async def run():
     # 测试问题
     # db_name = "concert_singer"
-    db_name = "flight_2"
+    dbs = ["flight_2", "concert_singer"]
+
+    # 读取schema
+    schemas, db_names, tables = get_schemas_from_json("test/tables.json")
 
     # 清空输出文件
-    with open(f"test/gold_example_{db_name}.txt", "w", encoding='utf-8') as f:
-        pass
-    with open(f"test/pred_example_{db_name}.txt", "w", encoding='utf-8') as f:
-        pass
+    for db_name in dbs:
+        schema = schemas[db_name]
+        table = tables[db_name]
+        schema = Schema(schema, table)
+
+        react_agent_graph = create_react_agent_graph(db_name)
     
-    dataset = generate_query()
-    # print("Parsed dataset:")
-    # print(json.dumps(dataset, indent=2, ensure_ascii=False))
+        dataset = generate_query()
+       # print("Parsed dataset:")
+       # print(json.dumps(dataset, indent=2, ensure_ascii=False))
     
-    # 准备批量写入的数据
-    gold_examples = []
-    pred_examples = []
-    errors = []
+        # 准备批量写入的数据
+        gold_examples = []
+        pred_examples = []
+        errors = []
     
-    if dataset and db_name in dataset:
-        # 处理所有问题并收集结果
-        for i, (question, gold_sql) in enumerate(zip(dataset[db_name]['question'], dataset[db_name]['gold_sql'])):
-            print(f"\n处理问题 {i+1}/{len(dataset[db_name]['question'])}")
-            print("Question:", question)
-            
-            response = await process_query(QueryRequest(question=question))
-            
-            # 确保生成的SQL没有分号结尾
-            if response.sql_query and response.sql_query.strip().endswith(';'):
-                response.sql_query = response.sql_query.strip()[:-1]
+        if dataset and db_name in dataset:
+            # 处理所有问题并收集结果
+            for i, (question, gold_sql) in enumerate(zip(dataset[db_name]['question'], dataset[db_name]['gold_sql'])):
+                logger.info(f"\n处理问题 {i+1}/{len(dataset[db_name]['question'])}")
+                logger.info("Question:", question)
                 
-            print("Generated SQL:", response.sql_query)
-            
-            if response.error:
-                print("Error:", response.error)
-                errors.append(f"问题: {question}\n错误: {response.error}\n")
-                # 如果出错，仍然需要添加一个占位符到预测结果中
-                pred_examples.append(f"SELECT 'ERROR' AS result\n")
-            else:
-                # 收集有效的预测结果
-                if not response.sql_query:
+                response = await process_query(QueryRequest(question=question), schema, react_agent_graph)
+                
+                # 确保生成的SQL没有分号结尾
+                if response.sql_query and response.sql_query.strip().endswith(';'):
+                    response.sql_query = response.sql_query.strip()[:-1]
+                    
+                logger.info("Generated SQL:", response.sql_query)
+                
+                if response.error:
+                    logger.info("Error:", response.error)
+                    errors.append(f"问题: {question}\n错误: {response.error}\n")
+                    # 如果出错，仍然需要添加一个占位符到预测结果中
                     pred_examples.append(f"SELECT 'ERROR' AS result\n")
                 else:
-                    pred_examples.append(f"{response.sql_query}\n")
-            
-            # 收集黄金标准
-            gold_examples.append(f"{gold_sql}\t{db_name}\n")
-    
-    # 批量写入文件
-    if gold_examples:
-        with open(f"test/gold_example_{db_name}.txt", "w", encoding='utf-8') as f:
-            f.writelines(gold_examples)
-    
-    if pred_examples:
-        with open(f"test/pred_example_{db_name}.txt", "w", encoding='utf-8') as f:
-            f.writelines(pred_examples)
-    
-    # 如果有错误，写入错误日志
-    if errors:
-        with open("test/errors.log", "w", encoding='utf-8') as f:
-            f.writelines(errors)
-        print(f"\n处理过程中出现 {len(errors)} 个错误，详情请查看 test/errors.log")
-    else:
-        print("\n所有问题处理完成，没有错误")
-    
-    print(f"\n处理完成! 结果已写入:")
-    print(f"- 黄金标准: test/gold_example_{db_name}.txt")
-    print(f"- 预测结果: test/pred_example_{db_name}.txt")
+                    # 收集有效的预测结果
+                    if not response.sql_query:
+                        pred_examples.append(f"SELECT 'ERROR' AS result\n")
+                    else:
+                        pred_examples.append(f"{response.get_format_sql_query()}\n")
+                
+                # 收集黄金标准
+                gold_examples.append(f"{gold_sql}\t{db_name}\n")
+        
+        # 批量写入文件
+        if gold_examples:
+            with open(f"test/gold_example_{db_name}.txt", "w", encoding='utf-8') as f:
+                f.writelines(gold_examples)
+        
+        if pred_examples:
+            with open(f"test/pred_example_{db_name}.txt", "w", encoding='utf-8') as f:
+                f.writelines(pred_examples)
+        
+        # 如果有错误，写入错误日志
+        if errors:
+            with open("test/errors.log", "w", encoding='utf-8') as f:
+                f.writelines(errors)
+            logger.info(f"\n处理过程中出现 {len(errors)} 个错误，详情请查看 test/errors.log")
+        else:
+            logger.info("\n所有问题处理完成，没有错误")
+        
+        logger.info(f"\n处理完成! 结果已写入:")   
+        logger.info(f"- 黄金标准: test/gold_example_{db_name}.txt")
+        logger.info(f"- 预测结果: test/pred_example_{db_name}.txt")
 
 if __name__ == "__main__":
     asyncio.run(run())
+    # sql_format("pred_example_concert_singer")
