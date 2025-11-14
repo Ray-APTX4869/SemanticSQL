@@ -175,6 +175,7 @@ logs/
 
 # Data
 data/
+test/*.txt
 
 # Workspace
 workspace/

@@ -160,7 +160,7 @@ def generate_query():
 async def run():
     # 测试问题
     # db_name = "concert_singer"
-    dbs = ["flight_2", "concert_singer"]
+    dbs = ["concert_singer"]
 
     # 读取schema
     schemas, db_names, tables = get_schemas_from_json("test/tables.json")
@@ -186,7 +186,7 @@ async def run():
             # 处理所有问题并收集结果
             for i, (question, gold_sql) in enumerate(zip(dataset[db_name]['question'], dataset[db_name]['gold_sql'])):
                 logger.info(f"\n处理问题 {i+1}/{len(dataset[db_name]['question'])}")
-                logger.info("Question:", question)
+                logger.info(f"Question: {question}")
                 
                 response = await process_query(QueryRequest(question=question), schema, react_agent_graph)
                 
@@ -194,10 +194,10 @@ async def run():
                 if response.sql_query and response.sql_query.strip().endswith(';'):
                     response.sql_query = response.sql_query.strip()[:-1]
                     
-                logger.info("Generated SQL:", response.sql_query)
+                logger.info(f"Generated SQL: {response.sql_query}")
                 
                 if response.error:
-                    logger.info("Error:", response.error)
+                    logger.info(f"Error: {response.error}")
                     errors.append(f"问题: {question}\n错误: {response.error}\n")
                     # 如果出错，仍然需要添加一个占位符到预测结果中
                     pred_examples.append(f"SELECT 'ERROR' AS result\n")

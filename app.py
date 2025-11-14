@@ -1,3 +1,4 @@
+from pprint import PrettyPrinter
 import streamlit as st
 from agent.agent import create_react_agent_graph
 from utils.schema_utils import get_schemas_from_json, Schema
@@ -6,7 +7,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage,ToolMessage
 from generate_sql import QueryResponse
 
-
+pretty_print = PrettyPrinter(indent=4).pprint
 # Streamlit UI
 st.title("🧠 Text to SQL 查询助手")
 st.markdown("输入文本问题，自动生成 SQL 并查询数据库。")
@@ -52,6 +53,7 @@ if st.session_state.run_query:
                 if len(message) > 0:
                     message = message[-1]
                 print(f'-------------step: {i}')
+                pretty_print(message)
                 i += 1
                 if isinstance(message, AIMessage):
                     # 处理动作（如调用工具）
