@@ -1,5 +1,4 @@
-from langchain.prompts import PromptTemplate
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
 
 # 构造 Prompt
 def build_prompt(schema):
