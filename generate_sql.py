@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional, Dict
-from agent.agent import react_agent_graph, create_react_agent_graph
+from agent.agent import  create_react_agent_graph
 from langchain_core.messages import AIMessage, ToolMessage
 import logging
 import json
@@ -60,7 +60,7 @@ async def process_query(request: QueryRequest, schema: Optional[Schema] = None, 
             if schema_info_text:
                 enhanced_input = f"Database schema:\n{schema_info_text}\n\nUser question:\n{request.question}"
 
-        graph = agent_graph or react_agent_graph
+        graph = agent_graph 
         if graph is None:
             raise ValueError("react agent graph 未初始化")
 
@@ -155,7 +155,7 @@ def generate_query():
     return dataset
 
 async def run():
-    dbs_env = os.getenv("EVAL_DBS", "flight_2").split(",")
+    dbs_env = os.getenv("EVAL_DBS", "concert_singer").split(",")
     dbs = [db.strip() for db in dbs_env if db.strip()]
     eval_limit = int(os.getenv("EVAL_LIMIT", "0"))
 

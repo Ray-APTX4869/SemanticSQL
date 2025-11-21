@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from langchain_community.agent_toolkits.sql.toolkit import SQLDatabaseToolkit
 from langchain_community.utilities.sql_database import SQLDatabase
 from utils.schema_utils import engine
+
 import faiss
 from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_community.vectorstores import FAISS
@@ -24,7 +25,6 @@ from langchain_core.prompts import (
 from agent.state import AgentState
 from typing import Dict, Any
 from langchain_core.runnables import Runnable
-from pathlib import Path
 # react agent配置
 class reactAgentConfig(BaseModel):
     username: str
@@ -34,7 +34,7 @@ class reactAgentConfig(BaseModel):
     max_iterations: int = 5
 
 # 加载配置
-with open("config.yaml", "r") as f:
+with open("config.yaml", "r",encoding="utf-8") as f:
     config = yaml.safe_load(f)
 # 加载环境变量
 load_dotenv()
@@ -55,10 +55,10 @@ llm = init_chat_model(model=os.getenv("model"),
                       api_key=os.getenv("api_key"), 
                       base_url=os.getenv("base_url"), 
                       max_tokens=config["max_tokens"])
-# 基于 config.yaml 的默认数据库（utils.schema_utils.engine）
-db = SQLDatabase(engine)
-# 初始化工具
-toolkit = SQLDatabaseToolkit(db=db, llm=llm)
+# # 初始化数据库
+# db = SQLDatabase(engine)
+# # 初始化工具
+# toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 # 初始化系统提示
 # prompt_template = hub.pull("langchain-ai/sql-agent-system-prompt")
 # assert len(prompt_template.messages) == 1
@@ -74,6 +74,7 @@ toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 
 
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large",
+                              base_url=os.getenv("base_url"),
                               openai_api_key=os.getenv("api_key"))
 
 # embedding_dim = len(embeddings.embed_query("hello world"))
@@ -146,19 +147,17 @@ full_prompt = ChatPromptTemplate.from_messages(
 #     }   
 # )
 
-react_agent_graph = create_react_agent(
-    model=llm,
-    tools=toolkit.get_tools(),
-    prompt=full_prompt,
-    state_schema=AgentState,
-    config_schema=reactAgentConfig
-)
+# react_agent_graph = create_react_agent(
+#     model=llm,
+#     tools=toolkit.get_tools(),
+#     prompt=full_prompt,
+#     state_schema=AgentState,
+#     config_schema=reactAgentConfig
+# )
 
 def create_react_agent_graph(db_name: str) -> Runnable:
-    # 根据 db_name 获取数据库（绝对路径确保运行目录变化不受影响）
-    base_dir = Path(__file__).resolve().parent.parent
-    db_path = base_dir / "test_database" / db_name / f"{db_name}.sqlite"
-    db = SQLDatabase.from_uri(f"sqlite:///{db_path}")
+    # 根据db_name获取数据库
+    db = SQLDatabase.from_uri(f"sqlite:///test_database/{db_name}/{db_name}.sqlite")
     # 初始化工具
     toolkit = SQLDatabaseToolkit(db=db, llm=llm)
     # 初始化agent
