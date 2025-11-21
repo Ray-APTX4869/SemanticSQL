@@ -1,5 +1,5 @@
 # db_url: "postgresql+psycopg2://test:test123@localhost:5432/academic"
-
+#db_url: "sqlite:///test_database/customers_and_orders/customers_and_orders.sqlite"
 db_url: "sqlite:///test_database/concert_singer/concert_singer.sqlite"
 #db_url: "sqlite:///test_database/flight_2/flight_2.sqlite"
 max_tokens: 60000
