@@ -66,61 +66,71 @@ if st.session_state.run_query:
                 details_expander = st.expander("📋 详细推理过程", expanded=True)
             
             step_count = 0
+            displayed_message_count = 0  # ✅ 记录已显示的消息数量
             
             # 遍历所有步骤
             for step in react_agent_graph.stream(initial_state, stream_mode=["values"]):
                 messages = step[1]["messages"]
-                if len(messages) == 0:
+                
+                # ✅ 只处理新增的消息
+                if len(messages) <= displayed_message_count:
                     continue
+                
+                # ✅ 获取所有新消息
+                new_messages = messages[displayed_message_count:]
+                displayed_message_count = len(messages)
+                
+                # ✅ 遍历所有新消息
+                for message in new_messages:
+                    step_count += 1
                     
-                message = messages[-1]
-                step_count += 1
-                
-                # 打印到控制台（调试用）
-                print(f'-------------step: {step_count}')
-                pretty_print(message)
-                
-                # ========== 只在开启详细模式时显示 ==========
-                if show_details:
-                    with details_expander:
-                        st.markdown(f"**步骤 {step_count}:** `{message.__class__.__name__}`")
-                
-                # 处理 AI 消息
-                if isinstance(message, AIMessage):
-                    # 提取工具调用
-                    for action in message.tool_calls:
-                        action_name = action.get('name')
-                        action_args = action.get('args')
+                    # 打印到控制台（调试用）
+                    print(f'-------------step: {step_count}')
+                    pretty_print(message)
+                    
+                    # ========== 只在开启详细模式时显示 ==========
+                    if show_details:
+                        with details_expander:
+                            st.markdown(f"**步骤 {step_count}:** `{message.__class__.__name__}`")
+                    
+                    # 处理 AI 消息
+                    if isinstance(message, AIMessage):
+                        # 提取工具调用
+                        for action in message.tool_calls:
+                            action_name = action.get('name')
+                            action_args = action.get('args')
+                            
+                            # 只在详细模式显示
+                            if show_details:
+                                with details_expander:
+                                    st.text(f"🔧 执行动作: {action_name}")
+                                    st.json(action_args)
+                            
+                            # 捕获 SQL 查询
+                            if action_name == 'sql_db_query':
+                                sql_query = action_args.get('query', '')
+                                # 清理 SQL（去掉分号）
+                                if sql_query.strip().endswith(';'):
+                                    sql_query = sql_query.strip()[:-1]
+                                final_sql = sql_query
+                        
+                        # 检查是否完成
+                        if message.response_metadata.get("finish_reason") == "stop":
+                            final_result = message.content
+                    
+                    # 处理工具消息
+                    elif isinstance(message, ToolMessage):
+                        # 捕获查询结果
+                        if message.name == 'sql_db_query':
+                            query_result = message.content
                         
                         # 只在详细模式显示
                         if show_details:
                             with details_expander:
-                                st.text(f"🔧 执行动作: {action_name}")
-                                st.code(str(action_args), language="python")
-                        
-                        # 捕获 SQL 查询
-                        if action_name == 'sql_db_query':
-                            sql_query = action_args.get('query', '')
-                            # 清理 SQL（去掉分号）
-                            if sql_query.strip().endswith(';'):
-                                sql_query = sql_query.strip()[:-1]
-                            final_sql = sql_query
-                    
-                    # 检查是否完成
-                    if message.response_metadata.get("finish_reason") == "stop":
-                        final_result = message.content
-                
-                # 处理工具消息
-                elif isinstance(message, ToolMessage):
-                    # 捕获查询结果
-                    if message.name == 'sql_db_query':
-                        query_result = message.content
-                    
-                    # 只在详细模式显示
-                    if show_details:
-                        with details_expander:
-                            st.text(f"📊 观察结果:")
-                            st.code(message.content[:500], language="python")  # 限制长度
+                                st.text(f"📊 观察结果 ({message.name}):")
+                                # 限制显示长度，避免界面过长
+                                content_preview = message.content[:500] if len(message.content) > 500 else message.content
+                                st.code(content_preview, language="python")
             
             # ========== 始终显示最终结果 ==========
             st.markdown("---")
