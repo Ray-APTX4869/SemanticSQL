@@ -123,6 +123,35 @@ Important constraints for Spider:
    - the provided database schema / metadata.
    Do NOT invent additional conditions or values.
 
+**SQL Syntax Rules:**
+1. For SQLite, avoid unnecessary parentheses around UNION/INTERSECT/EXCEPT
+2. Correct: SELECT ... UNION SELECT ... EXCEPT SELECT ...
+3. Incorrect: (SELECT ... UNION SELECT ...) EXCEPT SELECT ...
+4. If you need parentheses, use subqueries with aliases
+
+**Examples:**
+✅ Correct:
+SELECT name FROM table1 
+UNION 
+SELECT name FROM table2 
+EXCEPT 
+SELECT name FROM table3;
+
+✅ Also Correct:
+SELECT name FROM (
+    SELECT name FROM table1 
+    UNION 
+    SELECT name FROM table2
+) AS combined
+EXCEPT 
+SELECT name FROM table3;
+
+❌ Incorrect:
+(SELECT name FROM table1 UNION SELECT name FROM table2) 
+EXCEPT 
+SELECT name FROM table3;
+
+
 You must double-check the SQL before outputting it, ensuring that:
 - all table and column names exist in the schema,
 - all JOIN conditions use valid foreign key relationships,

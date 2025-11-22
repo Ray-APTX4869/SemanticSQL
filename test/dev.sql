@@ -721,7 +721,7 @@ SQL:  select t1.airline from airlines as t1 join flights as t2 on t1.uid  =  t2.
 Question 241:  Which airlines have departures from CVO but not from APG airports ? ||| flight_2
 SQL:  select t1.airline from airlines as t1 join flights as t2 on t1.uid  =  t2.airline where t2.sourceairport  =  "cvo" except select t1.airline from airlines as t1 join flights as t2 on t1.uid  =  t2.airline where t2.sourceairport  =  "apg"
 
-Question 242:  Find all airlines that have at least 10 flights . ||| flight_2
+Question 242:  z . ||| flight_2
 SQL:  select t1.airline from airlines as t1 join flights as t2 on t1.uid  =  t2.airline group by t1.airline having count(*)  >  10
 
 Question 243:  Which airlines have at least 10 flights ? ||| flight_2
