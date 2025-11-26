@@ -50,10 +50,11 @@ pip install -r requirements.txt
    
    a. 创建 `config.yaml` 文件并配置数据库连接信息：
    ```yaml
-   db_url: "postgresql+psycopg2://username:password@localhost:5432/database_name"
-   max_tokens: 20000
-   temperature: 0.2
-   model_path: "defog/sqlcoder-7b-2"
+  db_url: "sqlite:///test_database/flight_2/flight_2.sqlite"
+  max_tokens: 60000
+  temperature: 0.2
+  model_path: "defog/sqlcoder-7b-2"
+  eval_dbs: "flight_2"
    ```
 
    b. 数据库连接URL格式说明：

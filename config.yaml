@@ -3,6 +3,7 @@ db_url: "sqlite:///test_database/flight_2/flight_2.sqlite"
 max_tokens: 60000
 temperature: 0.2
 model_path: "defog/sqlcoder-7b-2"
+eval_dbs: "flight_2"
 
 database:
   root_path: "test_database"

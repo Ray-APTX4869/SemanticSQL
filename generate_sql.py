@@ -273,8 +273,8 @@ async def run():
     # ========== 从配置读取参数 ==========
     graphrag_config = config.get("graphrag", {})
     database_config = config.get("database", {})
-    
-    dbs_env = os.getenv("EVAL_DBS", "concert_singer").split(",")
+    dbs_env = config.get("eval_dbs", "concert_singer").split(",")
+    #dbs_env = os.getenv("EVAL_DBS", "concert_singer").split(",")
     dbs = [db.strip() for db in dbs_env if db.strip()]
     eval_limit = int(os.getenv("EVAL_LIMIT", "0"))
     
