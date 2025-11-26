@@ -1,6 +1,6 @@
 from pprint import PrettyPrinter
 import streamlit as st
-from agent.agent_factory import create_agent  # ✅ 改用工厂方法
+from agent.agent_factory import create_agent  #
 from utils.schema_utils import get_schemas_from_json, Schema
 from utils.db_utils import get_available_databases, get_database_path
 from utils.db_utils import get_databases_from_json
@@ -18,7 +18,7 @@ with open("config.yaml", "r", encoding="utf-8") as f:
 DATABASE_ROOT_PATH = config.get("database", {}).get("root_path", "test_database")
 TABLES_JSON_PATH = config.get("database", {}).get("tables_json_path", "test/tables.json")
 
-# ========== 🎯 工具名称映射（中文描述） ==========
+# ========== 工具名称映射（中文描述） ==========
 TOOL_DESCRIPTIONS = {
     'sql_db_list_tables': '📋 列出数据库中的所有表',
     'sql_db_schema': '🔍 查看表的结构和字段',

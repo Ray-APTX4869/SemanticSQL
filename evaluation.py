@@ -17,6 +17,7 @@
 #   'except': None/sql
 #   'union': None/sql
 # }
+#python evaluation.py --gold test/gold_all.txt --pred test/pred_all.txt  --db test_database --table test/tables.json --etype all
 ################################
 
 import os

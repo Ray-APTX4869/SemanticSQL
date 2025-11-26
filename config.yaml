@@ -10,8 +10,8 @@ database:
 
 # ========== GraphRAG 配置 ==========
 graphrag:
-  enabled: True  
-  tables_json_path: "test/tables.json"
-  use_full_schema_fallback: true  
-  top_k_tables: 5  
-  use_full_schema : false
+  enabled: false  # ✅ 是否启用 GraphRAG
+  top_k_tables: 5  # ✅ 检索表的数量
+  use_full_schema: false  # ✅ 是否直接使用完整 Schema（true=不检索，false=检索）
+  keyword_weight: 0.4  # ✅ 关键词匹配权重
+  embedding_weight: 0.6  # ✅ Embedding 语义权重
