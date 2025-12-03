@@ -2,7 +2,7 @@
 
 > LLM-driven semantic-to-SQL orchestration engine with human-in-the-loop control
 
-SemanticSQL 是一个将自然语言描述自动转化为可执行 SQL 查询的智能代理系统。项目基于 LangChain 生态构建，支持多种数据库驱动、流式交互界面及批量评测流程，适合在简历中突出端到端 LLM 应用落地的技术能力。
+SemanticSQL 是一个将自然语言描述自动转化为可执行 SQL 查询的智能代理系统。项目基于 LangChain 生态构建，支持多种数据库驱动、流式交互界面及批量评测流程。
 
 ## 核心亮点
 
