@@ -77,11 +77,6 @@ SemanticSQL/
 - 数据访问：SQLAlchemy、SQLite / PostgreSQL / MySQL（可扩展）
 - 日志与评测：Python logging、Spider Eval 工具链
 
-## 简历要点参考
-
-- 设计并实现 “语义检索 + Few-shot Prompt + 人工确认” 的 SQL 生成流水线，显著提升结果可解释性与安全性。
-- 集成多种数据库后端，通过配置驱动方式快速切换环境，支持本地示例库与生产数据库。
-- 构建批量评测框架，自动化记录预测 SQL、误差日志和准确率指标，为模型调优提供数据依据。
 
 ## 许可证
 
